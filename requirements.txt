@@ -4,3 +4,4 @@ pandas
 streamlit
 pandas
 groq
+openai

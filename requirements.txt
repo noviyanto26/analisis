@@ -5,3 +5,4 @@ streamlit
 pandas
 groq
 openai
+google-generativeai

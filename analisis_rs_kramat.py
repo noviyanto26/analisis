@@ -87,8 +87,8 @@ if AVAILABLE_PROVIDERS:
 else:
     st.sidebar.warning("Tidak ada provider AI yang aktif. Harap atur API Key Anda.")
 
-st.session_state["openrouter_model"] = st.sidebar.selectbox("Model OpenRouter", ["meta-llama/llama-3.1-70b-instruct", "google/gemini-pro-1.5", "openai/gpt-4o"])
-st.session_state["groq_model"] = st.sidebar.selectbox("Model Groq", ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"])
+st.session_state["openrouter_model"] = st.sidebar.selectbox("Model OpenRouter", ["meta-llama/llama-3.3-70b-instruct", "google/gemini-pro-1.5", "openai/gpt-4o"])
+st.session_state["groq_model"] = st.sidebar.selectbox("Model Groq", ["llama-3.3-70b-versatile", "llama-3.3-8b-instant", "gemma2-9b-it"])
 st.session_state["temperature"] = st.sidebar.slider("Temperature (Kreativitas)", 0.0, 1.0, 0.2, 0.1)
 
 st.sidebar.header("🤖 Pengaturan Agentic")

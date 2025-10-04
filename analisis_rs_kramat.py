@@ -24,10 +24,10 @@ from dotenv import load_dotenv
 # --- Import Library untuk Membuat PDF ---
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import Paragraph, Spacer
+from reportlab.platypus import Paragraph, Spacer, SimpleDocTemplate
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.colors import navy, black, gray
+from reportlab.lib.colors import navy, black, gray, darkblue
 
 # --- Konfigurasi Awal ---
 load_dotenv()
@@ -83,7 +83,7 @@ if AVAILABLE_PROVIDERS:
 else:
     st.sidebar.warning("Tidak ada provider AI yang aktif. Harap atur API Key Anda.")
 
-st.session_state["openrouter_model"] = st.sidebar.selectbox("Model OpenRouter", ["meta-llama/llama-3.3-70b-instruct", "google/gemini-pro-2.5", "openai/gpt-4o"])
+st.session_state["openrouter_model"] = st.sidebar.selectbox("Model OpenRouter", ["meta-llama/llama-3.3-70b-instruct", "google/gemini-pro-2.5", "openai/gpt-4o"s])
 st.session_state["groq_model"] = st.sidebar.selectbox("Model Groq", ["llama-3.3-70b-versatile", "llama-3.3-8b-instant", "gemma2-9b-it"])
 st.session_state["temperature"] = st.sidebar.slider("Temperature (Kreativitas)", 0.0, 1.0, 0.2, 0.1)
 
@@ -95,10 +95,8 @@ st.sidebar.caption("Pastikan API keys diatur di file .env atau Streamlit Secrets
 # ==========================================================
 # BAGIAN 3: FUNGSI AGENTIC PIPELINE & PDF
 # ==========================================================
-# (Fungsi Agentic tidak berubah)
 def proses_dengan_ai(system_prompt: str, user_prompt: str) -> dict:
     if not AVAILABLE_PROVIDERS: raise Exception("Tidak ada provider AI yang aktif.")
-    # ... (logika fallback)
     last_error = None
     for provider_name in AVAILABLE_PROVIDERS:
         config = PROVIDER_CONFIG[provider_name]
@@ -120,74 +118,81 @@ def agentic_plan(data_string: str, user_question: str) -> dict:
     return proses_dengan_ai(system_prompt, user_prompt)
 
 def agentic_draft(data_string: str, user_question: str, plan: dict) -> dict:
-    system_prompt = "Anda adalah analis data senior. Laksanakan rencana yang diberikan untuk menganalisis data dan menjawab permintaan pengguna. Jawab HANYA dalam format JSON: {'judul_analisis': '...', 'ringkasan_eksekutif': '...', 'draf_temuan': ['...'], 'draf_rekomendasi': ['...']}"
+    system_prompt = "Anda adalah analis data senior. Laksanakan rencana yang diberikan. Jawab HANYA dalam format JSON: {'judul_analisis': '...', 'ringkasan_eksekutif': '...', 'draf_temuan': ['...'], 'draf_rekomendasi': ['...']}"
     user_prompt = f"Rencana: {plan}\n\nPermintaan: {user_question}\n\nData Lengkap: {data_string}"
     return proses_dengan_ai(system_prompt, user_prompt)
 
 def agentic_critique(draft: dict) -> dict:
-    system_prompt = "Anda adalah AI kritikus yang sangat teliti. Tinjau draf analisis ini, identifikasi kelemahan atau asumsi yang belum terbukti. Jawab HANYA dalam format JSON: {'kritik_dan_saran': ['...']}"
+    system_prompt = "Anda adalah AI kritikus yang sangat teliti. Tinjau draf ini, identifikasi kelemahan. Jawab HANYA dalam format JSON: {'kritik_dan_saran': ['...']}"
     user_prompt = f"Tolong berikan kritik konstruktif untuk draf analisis berikut:\n\n{json.dumps(draft, indent=2)}"
     return proses_dengan_ai(system_prompt, user_prompt)
 
 def agentic_finalize(draft: dict, critique: dict) -> dict:
-    system_prompt = "Anda adalah editor ahli. Perbaiki draf analisis awal berdasarkan kritik untuk menghasilkan laporan akhir yang lebih kuat. Jawab HANYA dalam format JSON yang sama persis dengan struktur draf awal."
+    system_prompt = "Anda adalah editor ahli. Perbaiki draf analisis awal berdasarkan kritik untuk menghasilkan laporan akhir yang lebih kuat. Struktur JSON output HARUS SAMA PERSIS dengan struktur draf awal, hanya kontennya yang diperbaiki."
     user_prompt = f"Draf Awal:\n{json.dumps(draft, indent=2)}\n\nKritik dan Saran:\n{json.dumps(critique, indent=2)}\n\nRevisi dan finalisasi draf tersebut."
     return proses_dengan_ai(system_prompt, user_prompt)
 
-# [MODIFIKASI UTAMA] Fungsi Generate PDF yang lebih lengkap
+
 def generate_pdf_report(full_result_data: dict) -> bytes:
-    """Membuat laporan PDF dari seluruh proses agentic."""
+    """Membuat laporan PDF dari seluruh proses agentic, dengan penanganan struktur JSON yang kompleks."""
     buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
     
-    # Styles
     styles = getSampleStyleSheet()
     style_h1 = styles['h1']
     style_h2 = ParagraphStyle(name='h2', parent=styles['h2'], fontSize=14, leading=16, spaceBefore=12, spaceAfter=6, textColor=navy)
     style_h3 = ParagraphStyle(name='h3', parent=styles['h3'], fontSize=11, leading=14, spaceBefore=10, spaceAfter=4, textColor=black)
     style_body = styles['BodyText']
     style_body.leading = 14
-    style_code = ParagraphStyle(name='Code', parent=styles['Code'], fontSize=8, leading=10, backColor=gray, textColor=black, borderPadding=5, borderRadius=2)
+    style_code = ParagraphStyle(name='Code', parent=styles['Code'], fontSize=8, leading=10, backColor=gray, textColor=black, borderPadding=5, borderRadius=2, wordWrap='CJK')
 
     story = []
 
-    # Helper untuk menambahkan konten ke PDF Story
     def add_to_story(text, style):
         story.append(Paragraph(text, style))
         story.append(Spacer(1, 0.1 * inch))
 
     def add_json_to_story(data, title):
         add_to_story(title, style_h3)
-        # Ganti '<' dan '>' agar tidak dianggap sebagai tag HTML oleh ReportLab
         json_text = json.dumps(data, indent=2, ensure_ascii=False).replace('<', '&lt;').replace('>', '&gt;')
         story.append(Paragraph(f"<pre>{json_text}</pre>", style_code))
         story.append(Spacer(1, 0.2 * inch))
 
-    # --- Menyusun Konten PDF ---
     final_result = full_result_data.get("main_result", {})
-    
-    # Halaman 1: Ringkasan
     add_to_story(final_result.get('judul_analisis', 'Laporan Analisis'), style_h1)
     
+    # Ringkasan Eksekutif
     add_to_story("Ringkasan Eksekutif", style_h2)
-    add_to_story(final_result.get('ringkasan_eksekutif', 'Tidak ada ringkasan.'), style_body)
+    summary_text = final_result.get('ringkasan_eksekutif', final_result.get('konteks_analisis', {}).get('tujuan', 'Tidak ada ringkasan.'))
+    add_to_story(summary_text, style_body)
 
+    # Temuan Utama (dengan logika baru)
     add_to_story("Temuan Utama", style_h2)
-    for finding in final_result.get("draf_temuan", ["-"]):
-        add_to_story(f"• {finding}", style_body)
+    temuan = final_result.get("temuan_analisis", final_result.get("draf_temuan", []))
+    if temuan and isinstance(temuan[0], dict):
+        for item in temuan:
+            item_text = f"<b>{item.get('poliklinik', 'Item')}:</b> {item.get('analisis', 'N/A')}"
+            add_to_story(item_text, style_body)
+    else:
+        for finding in temuan:
+            add_to_story(f"• {finding}", style_body)
 
+    # Rekomendasi Aksi (dengan logika baru)
     add_to_story("Rekomendasi Aksi", style_h2)
-    for rec in final_result.get("draf_rekomendasi", ["-"]):
-        add_to_story(f"• {rec}", style_body)
-        
+    rekomendasi = final_result.get("rekomendasi", final_result.get("draf_rekomendasi", []))
+    if rekomendasi and isinstance(rekomendasi[0], dict):
+         for item in rekomendasi:
+            item_text = f"<b>{item.get('poliklinik', 'Rekomendasi')}:</b> {item.get('rekomendasi', 'N/A')}<br/><i>Alasan: {item.get('alasan', 'N/A')}</i>"
+            add_to_story(item_text, style_body)
+    else:
+        for rec in rekomendasi:
+            add_to_story(f"• {rec}", style_body)
+            
     story.append(Spacer(1, 0.5 * inch))
     add_to_story(f"<i>Laporan ini dibuat pada {datetime.now().strftime('%d-%m-%Y %H:%M')} menggunakan {final_result.get('_used_provider', 'AI')}</i>", styles['Italic'])
     
-    # Halaman Berikutnya: Proses Berpikir AI
+    # Lampiran
     story.append(Paragraph("Lampiran: Proses Berpikir AI (Agentic Steps)", style_h1))
     story.append(Spacer(1, 0.2 * inch))
-
     add_json_to_story(full_result_data.get("plan", {}), "1. Rencana Analisis")
     add_json_to_story(full_result_data.get("initial_draft", {}), "2. Draf Awal")
     
@@ -198,8 +203,6 @@ def generate_pdf_report(full_result_data: dict) -> bytes:
             
     add_json_to_story(final_result, "4. Hasil Final (Setelah Revisi)")
 
-    # Render PDF
-    from reportlab.platypus import SimpleDocTemplate
     doc = SimpleDocTemplate(buffer, pagesize=letter, leftMargin=inch, rightMargin=inch, topMargin=inch, bottomMargin=inch)
     doc.build(story)
     
@@ -242,7 +245,6 @@ if st.session_state.data_sheets:
         elif not AVAILABLE_PROVIDERS: st.error("Tidak ada provider AI aktif.")
         else:
             try:
-                # (Proses pipeline agentic tetap sama)
                 df_to_analyze = st.session_state.data_sheets[selected_sheet]
                 data_string = df_to_analyze.to_json(orient='split', indent=2)
                 
@@ -284,20 +286,32 @@ if st.session_state.final_result:
     st.success(f"Diselesaikan oleh: **{final_result.get('_used_provider', 'N/A')}**")
 
     st.markdown("**Ringkasan Eksekutif:**")
-    st.write(f"> {final_result.get('ringkasan_eksekutif', 'Tidak ada.')}")
+    summary_text_display = final_result.get('ringkasan_eksekutif', final_result.get('konteks_analisis', {}).get('tujuan', 'Tidak ada ringkasan.'))
+    st.write(f"> {summary_text_display}")
 
+    # [MODIFIKASI] Logika Tampilan Temuan & Rekomendasi
     st.markdown("**Temuan Utama:**")
-    for temuan in final_result.get("draf_temuan", ["-"]):
-        st.markdown(f"- {temuan}")
+    temuan_display = final_result.get("temuan_analisis", final_result.get("draf_temuan", ["-"]))
+    if temuan_display and isinstance(temuan_display[0], dict):
+        for item in temuan_display:
+            st.markdown(f"- **{item.get('poliklinik', 'Item')}:** {item.get('analisis', 'N/A')}")
+    else:
+        for temuan in temuan_display:
+            st.markdown(f"- {temuan}")
 
     st.markdown("**Rekomendasi Aksi:**")
-    for rek in final_result.get("draf_rekomendasi", ["-"]):
-        st.markdown(f"- {rek}")
+    rekomendasi_display = final_result.get("rekomendasi", final_result.get("draf_rekomendasi", ["-"]))
+    if rekomendasi_display and isinstance(rekomendasi_display[0], dict):
+        for item in rekomendasi_display:
+            st.markdown(f"- **{item.get('poliklinik', 'Rekomendasi')}:** {item.get('rekomendasi', 'N/A')}")
+    else:
+        for rek in rekomendasi_display:
+            st.markdown(f"- {rek}")
 
     # Tombol Unduh PDF
     st.markdown("---")
     try:
-        pdf_bytes = generate_pdf_report(result_data) # Kirim semua data proses ke fungsi PDF
+        pdf_bytes = generate_pdf_report(result_data)
         st.download_button(
             label="⬇️ Unduh Laporan Lengkap (PDF)",
             data=pdf_bytes,

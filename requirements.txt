@@ -6,3 +6,4 @@ pandas
 groq
 openai
 google-generativeai
+python-dotenv

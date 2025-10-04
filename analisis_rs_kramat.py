@@ -49,9 +49,9 @@ def _call_gemini(client, model, temp, system, user):
 class ProviderQuotaError(Exception): pass
 
 PROVIDER_CONFIG = {
-    "OpenRouter": {"api_key_name": "OPENROUTER_API_KEY", "init_func": lambda key: OpenAI(api_key=key, base_url="https://openrouter.ai/api/v1"), "call_func": _call_openai_compatible, "model": "meta-llama/llama-3.1-70b-instruct", "error_map": {(APIError, "insufficient_quota"): ProviderQuotaError}},
-    "Groq": {"api_key_name": "GROQ_API_KEY", "init_func": lambda key: Groq(api_key=key), "call_func": _call_openai_compatible, "model": "llama-3.1-8b-instant", "error_map": {(APIError, "insufficient_quota"): ProviderQuotaError}},
-    "Google": {"api_key_name": "GOOGLE_API_KEY", "init_func": lambda key: genai.configure(api_key=key) or genai.GenerativeModel("gemini-1.5-flash"), "call_func": _call_gemini, "model": "gemini-1.5-flash", "error_map": {(google_exceptions.ResourceExhausted, "free_tier"): ProviderQuotaError}}
+    "OpenRouter": {"api_key_name": "OPENROUTER_API_KEY", "init_func": lambda key: OpenAI(api_key=key, base_url="https://openrouter.ai/api/v1"), "call_func": _call_openai_compatible, "model": "meta-llama/llama-3.3-70b-instruct", "error_map": {(APIError, "insufficient_quota"): ProviderQuotaError}},
+    "Groq": {"api_key_name": "GROQ_API_KEY", "init_func": lambda key: Groq(api_key=key), "call_func": _call_openai_compatible, "model": "llama-3.3-8b-instant", "error_map": {(APIError, "insufficient_quota"): ProviderQuotaError}},
+    "Google": {"api_key_name": "GOOGLE_API_KEY", "init_func": lambda key: genai.configure(api_key=key) or genai.GenerativeModel("gemini-2.5-flash"), "call_func": _call_gemini, "model": "gemini-2.5-flash", "error_map": {(google_exceptions.ResourceExhausted, "free_tier"): ProviderQuotaError}}
 }
 
 ALL_POSSIBLE_PROVIDERS = ["OpenRouter", "Groq", "Google"]
